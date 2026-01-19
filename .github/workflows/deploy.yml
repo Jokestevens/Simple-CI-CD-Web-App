@@ -1,61 +1,23 @@
-name: Build and Deploy to OCI
+name: Deploy to OCI
 
 on:
   push:
-    branches: ["main"]
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+    branches:
+      - main
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}-backend:latest
-
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./Frontend
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}-frontend:latest
-
   deploy:
-    needs: build-and-push
     runs-on: ubuntu-latest
-
     steps:
-      - name: Deploy to OCI server
+      - name: Deploy to OCI server via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.OCI_HOST }}
-          username: ${{ secrets.OCI_USER }}
+          username: opc
           key: ${{ secrets.OCI_SSH_KEY }}
           script: |
+            set -e
             cd /opt/simple-cicd-app
-            docker compose pull
-            docker compose up -d
-            docker image prune -af
-            docker compose ps
+            git pull origin main
+            docker compose down
+            docker compose up -d --build
